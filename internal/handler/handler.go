@@ -13,9 +13,9 @@ import (
 
 // Register регистрирует HTTP обработчики
 func Register(r *mux.Router, minioClient *minio.Client) {
-	r.PathPrefix("/photo").Subrouter()
-	r.HandleFunc("/upload", uploadHandler(minioClient)).Methods("POST")
-	r.HandleFunc("/download/{objectName}", downloadHandler(minioClient)).Methods("GET")
+	api := r.PathPrefix("/api/photo").Subrouter()
+	api.HandleFunc("/upload", uploadHandler(minioClient)).Methods("POST")
+	api.HandleFunc("/download/{objectName}", downloadHandler(minioClient)).Methods("GET")
 }
 
 func uploadHandler(minioClient *minio.Client) http.HandlerFunc {
