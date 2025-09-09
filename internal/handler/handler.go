@@ -13,7 +13,7 @@ import (
 
 // Register регистрирует HTTP обработчики
 func Register(r *mux.Router, minioClient *minio.Client) {
-	r.PathPrefix("/api/photo").Subrouter()
+	r.PathPrefix("/photo").Subrouter()
 	r.HandleFunc("/upload", uploadHandler(minioClient)).Methods("POST")
 	r.HandleFunc("/download/{objectName}", downloadHandler(minioClient)).Methods("GET")
 }
