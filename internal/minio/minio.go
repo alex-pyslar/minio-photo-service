@@ -65,11 +65,19 @@ func (c *Client) Upload(ctx context.Context, file io.Reader, size int64, filenam
 	return objectName, url.String(), nil
 }
 
-// GetPresignedURL возвращает presigned URL для объекта
-func (c *Client) GetPresignedURL(ctx context.Context, objectName string) (string, error) {
-	url, err := c.client.PresignedGetObject(ctx, c.bucketName, objectName, time.Hour*24*7, nil)
+func (c *Client) GetObject(ctx context.Context, objectName string) ([]byte, error) {
+	// Получаем объект из MinIO
+	object, err := c.client.GetObject(ctx, c.bucketName, objectName, minio.GetObjectOptions{})
 	if err != nil {
-		return "", fmt.Errorf("ошибка генерации URL: %v", err)
+		return nil, fmt.Errorf("ошибка получения объекта: %v", err)
 	}
-	return url.String(), nil
+	defer object.Close()
+
+	// Читаем содержимое объекта в буфер
+	data, err := io.ReadAll(object)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка чтения содержимого объекта: %v", err)
+	}
+
+	return data, nil
 }

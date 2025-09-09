@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"mime"
 	"net/http"
 	"path/filepath"
 
@@ -13,9 +14,8 @@ import (
 
 // Register регистрирует HTTP обработчики
 func Register(r *mux.Router, minioClient *minio.Client) {
-	api := r.PathPrefix("/api/photo").Subrouter()
-	api.HandleFunc("/upload", uploadHandler(minioClient)).Methods("POST")
-	api.HandleFunc("/download/{objectName}", downloadHandler(minioClient)).Methods("GET")
+	r.HandleFunc("/upload", uploadHandler(minioClient)).Methods("POST")
+	r.HandleFunc("/download/{objectName}", downloadHandler(minioClient)).Methods("GET")
 }
 
 func uploadHandler(minioClient *minio.Client) http.HandlerFunc {
@@ -60,12 +60,26 @@ func downloadHandler(minioClient *minio.Client) http.HandlerFunc {
 		objectName := vars["objectName"]
 
 		ctx := context.Background()
-		url, err := minioClient.GetPresignedURL(ctx, objectName)
+		data, err := minioClient.GetObject(ctx, objectName)
 		if err != nil {
-			http.Error(w, "Ошибка получения URL", http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Ошибка получения объекта: %v", err), http.StatusInternalServerError)
 			return
 		}
 
-		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+		// Определяем MIME-тип на основе расширения файла
+		mimeType := mime.TypeByExtension(filepath.Ext(objectName))
+		if mimeType == "" {
+			mimeType = "application/octet-stream" // Фallback для неизвестных типов
+		}
+
+		// Устанавливаем заголовки
+		w.Header().Set("Content-Type", mimeType)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
+		w.WriteHeader(http.StatusOK)
+
+		// Отправляем содержимое объекта в ответ
+		if _, err := w.Write(data); err != nil {
+			fmt.Printf("Ошибка записи ответа: %v", err)
+		}
 	}
 }
