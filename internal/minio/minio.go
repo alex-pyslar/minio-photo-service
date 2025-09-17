@@ -20,6 +20,7 @@ type Client struct {
 
 // NewClient создаёт новый MinIO клиент и проверяет/создаёт бакет
 func NewClient(endpoint, accessKey, secretKey, bucket string, useSSL bool) (*Client, error) {
+	fmt.Printf("Инициализация MinIO клиента: endpoint=%s, useSSL=%v\n", endpoint, useSSL)
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -29,15 +30,18 @@ func NewClient(endpoint, accessKey, secretKey, bucket string, useSSL bool) (*Cli
 	}
 
 	ctx := context.Background()
+	fmt.Printf("Проверка существования бакета: %s\n", bucket)
 	exists, err := client.BucketExists(ctx, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка проверки бакета: %v", err)
 	}
 	if !exists {
+		fmt.Printf("Бакет %s не существует, создаём...\n", bucket)
 		err = client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("ошибка создания бакета: %v", err)
 		}
+		fmt.Printf("Бакет %s успешно создан\n", bucket)
 	}
 
 	return &Client{client: client, bucketName: bucket}, nil
@@ -48,12 +52,13 @@ func (c *Client) Upload(ctx context.Context, file io.Reader, size int64, filenam
 	// Генерируем уникальное имя объекта
 	ext := filepath.Ext(filename)
 	objectName := uuid.New().String() + ext
+	fmt.Printf("Загрузка объекта: %s, размер: %d\n", objectName, size)
 
 	// Загружаем с явным указанием времени в GMT
 	_, err := c.client.PutObject(ctx, c.bucketName, objectName, file, size, minio.PutObjectOptions{
 		ContentType: contentType,
 		UserMetadata: map[string]string{
-			"Last-Modified": time.Now().UTC().Format(time.RFC1123), // Явно задаём корректный формат
+			"Last-Modified": time.Now().UTC().Format(time.RFC1123), // Для совместимости
 		},
 	})
 	if err != nil {
@@ -69,28 +74,20 @@ func (c *Client) Upload(ctx context.Context, file io.Reader, size int64, filenam
 	return objectName, url.String(), nil
 }
 
-// GetObject получает объект из MinIO
-func (c *Client) GetObject(ctx context.Context, objectName string) ([]byte, error) {
-	// Сначала проверяем метаданные объекта
-	objInfo, err := c.client.StatObject(ctx, c.bucketName, objectName, minio.StatObjectOptions{})
+// GetPresignedURL генерирует presigned URL для объекта
+func (c *Client) GetPresignedURL(ctx context.Context, objectName string) (string, error) {
+	// Проверяем существование объекта
+	_, err := c.client.StatObject(ctx, c.bucketName, objectName, minio.StatObjectOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("ошибка проверки объекта: %v", err)
-	}
-	// Логируем Last-Modified для отладки
-	fmt.Printf("Объект: %s, Last-Modified: %s\n", objectName, objInfo.LastModified.Format(time.RFC1123))
-
-	// Получаем объект
-	object, err := c.client.GetObject(ctx, c.bucketName, objectName, minio.GetObjectOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("ошибка получения объекта: %v", err)
-	}
-	defer object.Close()
-
-	// Читаем содержимое
-	data, err := io.ReadAll(object)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка чтения содержимого объекта: %v", err)
+		return "", fmt.Errorf("ошибка проверки объекта: %v", err)
 	}
 
-	return data, nil
+	// Генерируем presigned URL (7 дней)
+	url, err := c.client.PresignedGetObject(ctx, c.bucketName, objectName, time.Hour*24*7, nil)
+	if err != nil {
+		return "", fmt.Errorf("ошибка генерации URL: %v", err)
+	}
+
+	fmt.Printf("Сгенерирована ссылка для %s: %s\n", objectName, url.String())
+	return url.String(), nil
 }
