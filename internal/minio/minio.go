@@ -49,8 +49,12 @@ func (c *Client) Upload(ctx context.Context, file io.Reader, size int64, filenam
 	ext := filepath.Ext(filename)
 	objectName := uuid.New().String() + ext
 
+	// Загружаем с явным указанием времени в GMT
 	_, err := c.client.PutObject(ctx, c.bucketName, objectName, file, size, minio.PutObjectOptions{
 		ContentType: contentType,
+		UserMetadata: map[string]string{
+			"Last-Modified": time.Now().UTC().Format(time.RFC1123), // Явно задаём корректный формат
+		},
 	})
 	if err != nil {
 		return "", "", fmt.Errorf("ошибка загрузки в MinIO: %v", err)
@@ -65,15 +69,24 @@ func (c *Client) Upload(ctx context.Context, file io.Reader, size int64, filenam
 	return objectName, url.String(), nil
 }
 
+// GetObject получает объект из MinIO
 func (c *Client) GetObject(ctx context.Context, objectName string) ([]byte, error) {
-	// Получаем объект из MinIO
+	// Сначала проверяем метаданные объекта
+	objInfo, err := c.client.StatObject(ctx, c.bucketName, objectName, minio.StatObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("ошибка проверки объекта: %v", err)
+	}
+	// Логируем Last-Modified для отладки
+	fmt.Printf("Объект: %s, Last-Modified: %s\n", objectName, objInfo.LastModified.Format(time.RFC1123))
+
+	// Получаем объект
 	object, err := c.client.GetObject(ctx, c.bucketName, objectName, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("ошибка получения объекта: %v", err)
 	}
 	defer object.Close()
 
-	// Читаем содержимое объекта в буфер
+	// Читаем содержимое
 	data, err := io.ReadAll(object)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка чтения содержимого объекта: %v", err)
