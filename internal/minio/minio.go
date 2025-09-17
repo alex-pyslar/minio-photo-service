@@ -54,12 +54,9 @@ func (c *Client) Upload(ctx context.Context, file io.Reader, size int64, filenam
 	objectName := uuid.New().String() + ext
 	fmt.Printf("Загрузка объекта: %s, размер: %d\n", objectName, size)
 
-	// Загружаем с явным указанием времени в GMT
+	// Загружаем без явного Last-Modified
 	_, err := c.client.PutObject(ctx, c.bucketName, objectName, file, size, minio.PutObjectOptions{
 		ContentType: contentType,
-		UserMetadata: map[string]string{
-			"Last-Modified": time.Now().UTC().Format(time.RFC1123), // Для совместимости
-		},
 	})
 	if err != nil {
 		return "", "", fmt.Errorf("ошибка загрузки в MinIO: %v", err)
@@ -76,13 +73,7 @@ func (c *Client) Upload(ctx context.Context, file io.Reader, size int64, filenam
 
 // GetPresignedURL генерирует presigned URL для объекта
 func (c *Client) GetPresignedURL(ctx context.Context, objectName string) (string, error) {
-	// Проверяем существование объекта
-	_, err := c.client.StatObject(ctx, c.bucketName, objectName, minio.StatObjectOptions{})
-	if err != nil {
-		return "", fmt.Errorf("ошибка проверки объекта: %v", err)
-	}
-
-	// Генерируем presigned URL (7 дней)
+	// Генерируем presigned URL (7 дней) без проверки StatObject
 	url, err := c.client.PresignedGetObject(ctx, c.bucketName, objectName, time.Hour*24*7, nil)
 	if err != nil {
 		return "", fmt.Errorf("ошибка генерации URL: %v", err)
