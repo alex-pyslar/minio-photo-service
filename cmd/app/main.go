@@ -26,6 +26,8 @@ func main() {
 
 	// Настраиваем роутер
 	r := mux.NewRouter()
+	r.Use(handler.CorsMiddleware) // Применяем CORS ко всем запросам
+
 	handler.Register(r, minioClient)
 
 	// Запускаем сервер
