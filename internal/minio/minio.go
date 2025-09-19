@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,6 +79,9 @@ func (c *Client) GetPresignedURL(ctx context.Context, objectName string) (string
 	if err != nil {
 		return "", fmt.Errorf("ошибка генерации URL: %v", err)
 	}
+
+	generatedURL := url.String()
+	generatedURL = strings.ReplaceAll(generatedURL, " ", "") // Удаляем все пробелы
 
 	fmt.Printf("Сгенерирована ссылка для %s: %s\n", objectName, url.String())
 	return url.String(), nil
