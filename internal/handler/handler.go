@@ -66,7 +66,7 @@ func downloadHandler(minioClient *minio.Client) http.HandlerFunc {
 		}
 
 		// Возвращаем JSON с presigned URL
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, `%s`, url)
 	}
 }
